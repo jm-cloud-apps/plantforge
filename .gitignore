@@ -1,0 +1,22 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+
+# Env — NEVER commit real keys (esp. the Supabase service_role key)
+.env
+.env.*
+!.env.example
+
+# PWA generated files
+dev-dist

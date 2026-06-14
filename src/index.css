@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  /* Safe-area insets exposed as vars for convenient padding around the notch
+     and the iPhone home indicator. */
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+  --sar: env(safe-area-inset-right);
+}
+
+html {
+  /* Stop iOS from auto-resizing text on rotation. */
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-soil-900 text-soil-50 antialiased;
+  color: #e7f3ec;
+  background-image: radial-gradient(900px 480px at 80% -8%, rgba(34, 197, 94, 0.14), transparent),
+    radial-gradient(700px 500px at 0% 100%, rgba(34, 197, 94, 0.06), transparent);
+  background-attachment: fixed;
+  /* Disable the rubber-band overscroll glow on the body. */
+  overscroll-behavior-y: none;
+}
+
+/* Inputs: 16px min prevents iOS Safari from zooming in on focus. */
+input,
+select,
+textarea,
+button {
+  font-size: 16px;
+}
+
+/* Comfortable, thumb-friendly tap targets. */
+.tap {
+  min-height: 44px;
+}
+
+/* Smooth momentum scrolling on iOS. */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe-area helpers */
+.pt-safe {
+  padding-top: calc(0.5rem + var(--sat));
+}
+.pb-safe {
+  padding-bottom: calc(0.75rem + var(--sab));
+}
+
+/* Inputs / form controls */
+.field {
+  @apply w-full rounded-xl border border-white/10 bg-soil-850 px-3.5 py-3 text-soil-50 outline-none transition focus:border-canopy-500;
+}
+.field::placeholder {
+  @apply text-soil-50/35;
+}
+.label {
+  @apply mb-1.5 block text-sm font-medium text-soil-50/70;
+}
+.btn {
+  @apply tap inline-flex items-center justify-center gap-2 rounded-xl px-4 font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+}
+.btn-primary {
+  @apply btn bg-canopy-600 text-white hover:bg-canopy-500;
+}
+.btn-ghost {
+  @apply btn bg-white/5 text-soil-50 hover:bg-white/10;
+}
+.card {
+  @apply rounded-2xl border border-white/10 bg-soil-850;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-white/10;
+}
+
+/* native date/number controls: lighten the dark-mode picker indicator */
+input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+}
