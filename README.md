@@ -37,7 +37,7 @@ One-time, ~10 minutes:
 
 1. Create a free project at [supabase.com](https://supabase.com). Note the **Project URL** and **anon public key** (Settings → API).
 2. In the **SQL editor**, run [`supabase/schema.sql`](supabase/schema.sql) — it creates the tables, RLS policies, and the private `plant-photos` storage bucket.
-3. Create the login: **Authentication → Users → Add user** (email + password). (Optionally disable “Confirm email” under Authentication → Providers → Email for a single-user setup.)
+3. Create the login: **Authentication → Users → Add user**. To allow a short **username** instead of an email, enter the email as `<username>@plantforge.local` (e.g. `jo@plantforge.local`), set a password, and turn **Auto Confirm User** on. She then signs in by typing just `jo` (the app maps it to that synthetic email). A real email works too. *(Password must be ≥6 chars — Supabase's default; adjustable under Authentication → Policies.)*
 4. **Local dev:** copy `.env.example` to `.env` and fill in:
    ```
    VITE_SUPABASE_URL=https://xxxx.supabase.co

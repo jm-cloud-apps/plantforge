@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, IS_SUPABASE } from '../lib/supabase.js'
+import { supabase, IS_SUPABASE, toLoginEmail } from '../lib/supabase.js'
 
 const AuthContext = createContext(null)
 
@@ -29,7 +29,9 @@ export function AuthProvider({ children }) {
     user,
     needsAuth: IS_SUPABASE,
     isAuthenticated: Boolean(user),
-    async signIn(email, password) {
+    // Accepts a username (mapped to a synthetic email) or a real email.
+    async signIn(identifier, password) {
+      const email = toLoginEmail(identifier)
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
     },
