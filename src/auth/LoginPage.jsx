@@ -3,7 +3,7 @@ import { useAuth } from './AuthProvider.jsx'
 
 export default function LoginPage() {
   const { signIn } = useAuth()
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -13,7 +13,7 @@ export default function LoginPage() {
     setBusy(true)
     setError('')
     try {
-      await signIn(email.trim(), password)
+      await signIn(username, password)
     } catch (err) {
       setError(err?.message || 'Sign in failed.')
     } finally {
@@ -32,11 +32,12 @@ export default function LoginPage() {
 
         <div className="mt-6 space-y-3 text-left">
           <div>
-            <label className="label" htmlFor="email">Email</label>
+            <label className="label" htmlFor="username">Username</label>
             <input
-              id="email" type="email" autoComplete="username" inputMode="email"
-              className="field" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com" required
+              id="username" type="text" autoComplete="username"
+              autoCapitalize="none" autoCorrect="off" spellCheck="false"
+              className="field" value={username} onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g. jo" required
             />
           </div>
           <div>

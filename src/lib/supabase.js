@@ -15,3 +15,16 @@ export const supabase = IS_SUPABASE
   : null
 
 export const PHOTO_BUCKET = 'plant-photos'
+
+// Supabase Auth is email-based, but we let users sign in with a short username
+// for convenience. A username (anything without an "@") is mapped to a synthetic
+// email "<username>@plantforge.local" behind the scenes. Create the account in
+// Supabase with that exact synthetic email (and "Auto Confirm User" on).
+export const USERNAME_DOMAIN = 'plantforge.local'
+
+// Turn whatever the user typed into the email Supabase expects.
+export function toLoginEmail(identifier) {
+  const id = (identifier || '').trim()
+  if (!id) return ''
+  return id.includes('@') ? id.toLowerCase() : `${id.toLowerCase()}@${USERNAME_DOMAIN}`
+}
