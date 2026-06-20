@@ -77,7 +77,7 @@ export default function PlantForm() {
         <Link to={editing ? `/plant/${id}` : '/'} className="text-sm text-soil-50/55">Cancel</Link>
       </div>
 
-      <PhotoInput value={existingPhoto} onChange={setPhotoFile} />
+      <PhotoInput value={existingPhoto} onChange={setPhotoFile} type={form.type} />
 
       <div>
         <label className="label" htmlFor="name">Name *</label>
