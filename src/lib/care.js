@@ -1,21 +1,49 @@
 // Care scheduling + date helpers (native Date, no dependencies).
+//
+// Care dates are timezone-independent CALENDAR dates ("YYYY-MM-DD"), not instants.
+// We always read and format them in the device's LOCAL timezone (PST on her
+// phone). Plain `new Date("2026-06-20")` parses as UTC midnight, which renders and
+// computes as the *previous* day in negative-offset zones (PST) — the classic
+// off-by-one. The helpers below stay on local Y/M/D components to avoid that.
 
 const DAY = 86400000
 
+// Parse a "YYYY-MM-DD" (or full ISO datetime) value into a LOCAL Date. Date-only
+// strings are rebuilt from local components so they never shift across timezones.
+function toLocalDate(value) {
+  if (value == null || value === '') return null
+  if (value instanceof Date) return value
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return new Date(value) // full ISO datetime (e.g. an event's createdAt)
+}
+
+// A Date → local "YYYY-MM-DD" (no UTC conversion).
+function toISODate(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function startOfDay(d) {
-  const x = new Date(d)
+  const x = toLocalDate(d)
+  if (!x) return null
   x.setHours(0, 0, 0, 0)
   return x
 }
 
+// Today's LOCAL calendar date as "YYYY-MM-DD" (device timezone).
 export function today() {
-  return new Date().toISOString().slice(0, 10)
+  return toISODate(new Date())
 }
 
-// Whole days between two ISO dates (b - a). Positive = b is later.
+// Whole days between two dates (b - a). Positive = b is later.
 export function daysBetween(a, b) {
-  if (!a || !b) return null
-  return Math.round((startOfDay(b) - startOfDay(a)) / DAY)
+  const da = startOfDay(a)
+  const dbb = startOfDay(b)
+  if (!da || !dbb) return null
+  return Math.round((dbb - da) / DAY)
 }
 
 export function daysAgo(dateStr) {
@@ -23,12 +51,13 @@ export function daysAgo(dateStr) {
   return daysBetween(dateStr, today())
 }
 
-// Next due date (ISO) given a last-done date and interval in days.
+// Next due date (local "YYYY-MM-DD") given a last-done date and interval in days.
 export function nextDue(lastDate, intervalDays) {
   if (!lastDate || !intervalDays) return null
   const d = startOfDay(lastDate)
+  if (!d) return null
   d.setDate(d.getDate() + Number(intervalDays))
-  return d.toISOString().slice(0, 10)
+  return toISODate(d)
 }
 
 // Status for a care task: needs an interval to be meaningful.
@@ -54,8 +83,8 @@ export function relativeDays(dateStr) {
 }
 
 export function formatDate(dateStr) {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
+  const d = toLocalDate(dateStr)
+  if (!d) return '—'
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 

@@ -1,4 +1,5 @@
 import { supabase, PHOTO_BUCKET } from './supabase.js'
+import { today } from './care.js'
 
 // Cloud backend (Supabase Postgres + Storage). RLS scopes every row to the
 // signed-in user, and user_id defaults to auth.uid() on insert, so we never
@@ -134,7 +135,7 @@ export const supabaseBackend = {
   },
 
   async logCare(plantId, type, { date, note } = {}) {
-    const eventDate = date || new Date().toISOString().slice(0, 10)
+    const eventDate = date || today() // local calendar date (device timezone)
     const field = { watered: 'last_watered', repotted: 'last_repotted', fertilized: 'last_fertilized' }[type]
     if (field) await supabase.from('plants').update({ [field]: eventDate, updated_at: new Date().toISOString() }).eq('id', plantId)
     const { data, error } = await supabase
@@ -144,5 +145,25 @@ export const supabaseBackend = {
       .single()
     if (error) throw error
     return { id: data.id, plantId: data.plant_id, type: data.type, eventDate: data.event_date, note: data.note, createdAt: data.created_at }
+  },
+
+  // Undo a logged care entry, then re-derive the matching last_* date from the
+  // most recent remaining event of that type (or clear it if none are left).
+  async deleteCareEvent(event) {
+    if (!event?.id) return
+    const { error } = await supabase.from('care_events').delete().eq('id', event.id)
+    if (error) throw error
+    const field = { watered: 'last_watered', repotted: 'last_repotted', fertilized: 'last_fertilized' }[event.type]
+    if (field) {
+      const { data } = await supabase
+        .from('care_events')
+        .select('event_date')
+        .eq('plant_id', event.plantId)
+        .eq('type', event.type)
+        .order('event_date', { ascending: false })
+        .limit(1)
+      const latest = data?.[0]?.event_date ?? null
+      await supabase.from('plants').update({ [field]: latest, updated_at: new Date().toISOString() }).eq('id', event.plantId)
+    }
   },
 }

@@ -2,6 +2,8 @@
 // including photos as base64 data URLs. Used when Supabase isn't configured so
 // the app is fully usable for local/demo use and development.
 
+import { today } from './care.js'
+
 const PLANTS_KEY = 'plantforge.plants.v1'
 const EVENTS_KEY = 'plantforge.events.v1'
 
@@ -76,7 +78,7 @@ export const localBackend = {
   },
 
   async logCare(plantId, type, { date, note } = {}) {
-    const eventDate = date || new Date().toISOString().slice(0, 10)
+    const eventDate = date || today() // local calendar date (device timezone)
     // 1) stamp the matching last_* field on the plant
     const field = { watered: 'lastWatered', repotted: 'lastRepotted', fertilized: 'lastFertilized' }[type]
     if (field) await this.updatePlant(plantId, { [field]: eventDate })
@@ -86,6 +88,24 @@ export const localBackend = {
     events.push(ev)
     write(EVENTS_KEY, events)
     return ev
+  },
+
+  // Undo a logged care entry, then re-derive the matching last_* date from the
+  // most recent remaining event of that type (or clear it if none are left).
+  async deleteCareEvent(event) {
+    if (!event?.id) return
+    const remaining = read(EVENTS_KEY).filter((e) => e.id !== event.id)
+    write(EVENTS_KEY, remaining)
+    const field = { watered: 'lastWatered', repotted: 'lastRepotted', fertilized: 'lastFertilized' }[event.type]
+    if (field) {
+      const latest =
+        remaining
+          .filter((e) => e.plantId === event.plantId && e.type === event.type)
+          .map((e) => e.eventDate)
+          .sort()
+          .pop() || null
+      await this.updatePlant(event.plantId, { [field]: latest })
+    }
   },
 }
 

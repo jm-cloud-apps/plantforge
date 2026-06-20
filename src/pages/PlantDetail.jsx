@@ -48,6 +48,22 @@ export default function PlantDetail() {
     }
   }
 
+  // Undo an entry logged by mistake (e.g. an accidental "Fertilized today").
+  // Removes the history event and resets the matching date to the previous one.
+  async function undoEvent(ev) {
+    const m = EVENT_META[ev.type] || EVENT_META.note
+    if (!confirm(`Remove this “${m.label}” entry (${formatDate(ev.eventDate)})? The ${m.label.toLowerCase()} date will reset to the previous entry, if any.`)) return
+    setBusy('undo:' + ev.id)
+    try {
+      await db.deleteCareEvent(ev)
+      await load()
+    } catch (e) {
+      setError(e.message || 'Could not remove entry')
+    } finally {
+      setBusy('')
+    }
+  }
+
   async function handleDelete() {
     if (!confirm(`Delete “${plant.name}”? This can’t be undone.`)) return
     await db.deletePlant(id)
@@ -120,6 +136,15 @@ export default function PlantDetail() {
                     <div>{formatDate(e.eventDate)}</div>
                     <div>{relativeDays(e.eventDate)}</div>
                   </div>
+                  <button
+                    onClick={() => undoEvent(e)}
+                    disabled={busy === 'undo:' + e.id}
+                    aria-label={`Remove ${m.label} entry`}
+                    title="Remove this entry"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-soil-50/40 hover:bg-rose-500/15 hover:text-rose-300 disabled:opacity-50"
+                  >
+                    {busy === 'undo:' + e.id ? '…' : '✕'}
+                  </button>
                 </li>
               )
             })}
