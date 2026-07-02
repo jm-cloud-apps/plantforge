@@ -41,12 +41,51 @@ function toRow(d) {
 const nz = (v) => (v === '' || v === undefined ? null : v)
 const ni = (v) => (v === '' || v === undefined || v === null ? null : parseInt(v, 10))
 
-async function fromRow(row) {
-  let photoUrl = null
-  if (row.photo_path) {
-    const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(row.photo_path, 3600)
-    photoUrl = data?.signedUrl || null
+// ── Signed-URL cache ────────────────────────────────────────────────────────
+// Storage signed URLs are minted per request and carry a short-lived token, so
+// re-fetching the plant list (e.g. switching tabs) otherwise fires one Storage
+// round-trip *per photo* and hands the browser a brand-new URL each time —
+// defeating its image cache. We cache URLs by path for their lifetime (minus a
+// safety skew) and mint missing ones in a single batch call.
+const SIGN_TTL = 3600 // seconds the signed URL stays valid
+const SIGN_SKEW = 120 // re-mint this many seconds before it actually expires
+const urlCache = new Map() // photo_path -> { url, exp (ms epoch) }
+
+function cachedUrl(path) {
+  const hit = urlCache.get(path)
+  if (hit && hit.exp > Date.now() + SIGN_SKEW * 1000) return hit.url
+  return null
+}
+function putUrl(path, url) {
+  urlCache.set(path, { url, exp: Date.now() + SIGN_TTL * 1000 })
+}
+
+// Resolve many paths to signed URLs, reusing the cache and batching the misses
+// into one createSignedUrls() call. Returns a Map<path, url>.
+async function signPaths(paths) {
+  const out = new Map()
+  const missing = []
+  for (const p of paths) {
+    if (!p) continue
+    const c = cachedUrl(p)
+    if (c) out.set(p, c)
+    else if (!missing.includes(p)) missing.push(p)
   }
+  if (missing.length) {
+    const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrls(missing, SIGN_TTL)
+    for (const item of data || []) {
+      if (item?.signedUrl && item?.path) {
+        putUrl(item.path, item.signedUrl)
+        out.set(item.path, item.signedUrl)
+      }
+    }
+  }
+  return out
+}
+
+// Pure DB-row → UI-plant mapper; photoUrl is supplied by the caller (already
+// resolved via signPaths) so this stays synchronous.
+function rowToPlant(row, photoUrl = null) {
   return {
     id: row.id,
     name: row.name,
@@ -70,6 +109,11 @@ async function fromRow(row) {
   }
 }
 
+async function fromRow(row) {
+  const photoUrl = row.photo_path ? await signedUrl(row.photo_path) : null
+  return rowToPlant(row, photoUrl)
+}
+
 async function currentUserId() {
   const { data } = await supabase.auth.getUser()
   return data?.user?.id
@@ -89,7 +133,10 @@ async function uploadPhotoFile(plantId, file) {
 
 async function signedUrl(path) {
   if (!path) return null
-  const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600)
+  const c = cachedUrl(path)
+  if (c) return c
+  const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(path, SIGN_TTL)
+  if (data?.signedUrl) putUrl(path, data.signedUrl)
   return data?.signedUrl || null
 }
 
@@ -110,13 +157,30 @@ async function refreshCover(plantId) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', plantId)
+  invalidateList() // cover thumbnail changed
+}
+
+// ── Plant-list cache ─────────────────────────────────────────────────────────
+// The Dashboard and the Plants tab each fetch the whole list independently, so
+// caching it briefly makes tab switches instant instead of re-querying + re-
+// signing every photo. Any local write invalidates it, so the only staleness
+// window is edits made on another device (fine for a personal app).
+const LIST_TTL = 30000 // ms
+let listCache = null // { at, plants }
+const invalidateList = () => {
+  listCache = null
 }
 
 export const supabaseBackend = {
-  async listPlants() {
+  async listPlants({ force = false } = {}) {
+    if (!force && listCache && Date.now() - listCache.at < LIST_TTL) return listCache.plants
     const { data, error } = await supabase.from('plants').select(COLS).order('name', { ascending: true })
     if (error) throw error
-    return Promise.all((data || []).map(fromRow))
+    const rows = data || []
+    const urls = await signPaths(rows.map((r) => r.photo_path))
+    const plants = rows.map((r) => rowToPlant(r, r.photo_path ? urls.get(r.photo_path) || null : null))
+    listCache = { at: Date.now(), plants }
+    return plants
   },
 
   async getPlant(id) {
@@ -128,6 +192,7 @@ export const supabaseBackend = {
   async createPlant(data) {
     const { data: inserted, error } = await supabase.from('plants').insert(toRow(data)).select('id').single()
     if (error) throw error
+    invalidateList()
     if (data.photoFile) await this.addPhoto(inserted.id, data.photoFile)
     return this.getPlant(inserted.id)
   },
@@ -137,6 +202,7 @@ export const supabaseBackend = {
     patch.updated_at = new Date().toISOString()
     const { error } = await supabase.from('plants').update(patch).eq('id', id)
     if (error) throw error
+    invalidateList()
     if (data.photoFile) await this.addPhoto(id, data.photoFile)
     else if (data.photoFile === null) await this.removeCover(id)
     return this.getPlant(id)
@@ -149,6 +215,7 @@ export const supabaseBackend = {
     if (paths.length) await supabase.storage.from(PHOTO_BUCKET).remove(paths)
     const { error } = await supabase.from('plants').delete().eq('id', id)
     if (error) throw error
+    invalidateList()
   },
 
   // ── Photo history ─────────────────────────────────────────────────────────
@@ -159,9 +226,9 @@ export const supabaseBackend = {
       .eq('plant_id', plantId)
       .order('created_at', { ascending: false })
     if (error) throw error
-    return Promise.all(
-      (data || []).map(async (r) => ({ id: r.id, url: await signedUrl(r.photo_path), createdAt: r.created_at })),
-    )
+    const rows = data || []
+    const urls = await signPaths(rows.map((r) => r.photo_path))
+    return rows.map((r) => ({ id: r.id, url: r.photo_path ? urls.get(r.photo_path) || null : null, createdAt: r.created_at }))
   },
 
   async addPhoto(plantId, file) {
@@ -193,6 +260,7 @@ export const supabaseBackend = {
       .from('plants')
       .update({ photo_path: null, last_photo_on: null, updated_at: new Date().toISOString() })
       .eq('id', plantId)
+    invalidateList()
   },
 
   async listEvents(plantId) {
@@ -211,7 +279,10 @@ export const supabaseBackend = {
   async logCare(plantId, type, { date, note } = {}) {
     const eventDate = date || today() // local calendar date (device timezone)
     const field = { watered: 'last_watered', repotted: 'last_repotted', fertilized: 'last_fertilized' }[type]
-    if (field) await supabase.from('plants').update({ [field]: eventDate, updated_at: new Date().toISOString() }).eq('id', plantId)
+    if (field) {
+      await supabase.from('plants').update({ [field]: eventDate, updated_at: new Date().toISOString() }).eq('id', plantId)
+      invalidateList() // watering/repot status shown in the list changed
+    }
     const { data, error } = await supabase
       .from('care_events')
       .insert({ plant_id: plantId, type, event_date: eventDate, note: note || null })
@@ -253,6 +324,7 @@ export const supabaseBackend = {
     if (!event?.id) return
     const { error } = await supabase.from('care_events').delete().eq('id', event.id)
     if (error) throw error
+    invalidateList() // may change the plant's last_* status shown in the list
     const field = { watered: 'last_watered', repotted: 'last_repotted', fertilized: 'last_fertilized' }[event.type]
     if (field) {
       const { data } = await supabase

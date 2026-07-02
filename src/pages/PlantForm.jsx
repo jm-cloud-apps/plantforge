@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import { db } from '../lib/db.js'
 import { presetFor } from '../data/plantTypes.js'
 import { today } from '../lib/care.js'
+import { compressImage } from '../lib/image.js'
 import TypeCombobox from '../components/TypeCombobox.jsx'
 import PhotoInput from '../components/PhotoInput.jsx'
 
@@ -61,7 +62,9 @@ export default function PlantForm() {
     setError('')
     try {
       const data = { ...form, name: form.name.trim() }
-      if (photoFile !== undefined) data.photoFile = photoFile // File or null (remove)
+      // Downscale/compress before storing so we never upload a multi-MB original
+      // (falls back to the original file on any failure). null = remove photo.
+      if (photoFile !== undefined) data.photoFile = photoFile ? await compressImage(photoFile) : null
       const saved = editing ? await db.updatePlant(id, data) : await db.createPlant(data)
       navigate(`/plant/${saved.id}`)
     } catch (err) {

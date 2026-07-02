@@ -1,11 +1,32 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+
+// Build metadata, baked into the bundle so the running app can show which commit
+// it was built from (and confirm the PWA isn't serving a stale cached bundle).
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)))
+const git = (cmd, fallback) => {
+  try {
+    return execSync(`git ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    return fallback
+  }
+}
+const COMMIT = git('rev-parse --short HEAD', 'dev')
+const COMMIT_TIME = git('log -1 --format=%cI', '') // committer date, ISO 8601
 
 // `base` is '/' locally; the Pages deploy workflow sets VITE_BASE=/plantforge/
 // so assets resolve under https://<user>.github.io/plantforge/.
 export default defineConfig({
   base: process.env.VITE_BASE || '/',
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __COMMIT__: JSON.stringify(COMMIT),
+    __COMMIT_TIME__: JSON.stringify(COMMIT_TIME),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({

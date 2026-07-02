@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { db, MODE } from '../lib/db.js'
 import { useAuth } from '../auth/AuthProvider.jsx'
+import { BUILD, buildStamp } from '../lib/build.js'
 
 export default function Settings() {
   const { user, needsAuth, signOut } = useAuth()
   const [busy, setBusy] = useState(false)
   const [name, setName] = useState('')
   const [nameStatus, setNameStatus] = useState('') // '' | 'saving' | 'saved' | 'error'
+  const stamp = buildStamp()
 
   useEffect(() => {
     db.getSettings().then((s) => setName(s.collectionName || '')).catch(() => {})
@@ -113,7 +115,13 @@ export default function Settings() {
         )}
       </section>
 
-      <p className="text-center text-xs text-soil-50/35">PlantForge · made with 🌱</p>
+      <div className="pt-2 text-center text-xs text-soil-50/35">
+        <p>PlantForge · made with 🌱</p>
+        <p className="mt-1 font-mono text-[11px] text-soil-50/25">
+          v{BUILD.version} · {stamp.commit}
+          {stamp.when ? ` · ${stamp.when}` : ''}
+        </p>
+      </div>
     </div>
   )
 }
