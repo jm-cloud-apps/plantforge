@@ -1,24 +1,47 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '../lib/db.js'
+import { careStatus, nextDue } from '../lib/care.js'
 import PlantCard from '../components/PlantCard.jsx'
+
+// Most urgent first: overdue → due today → due soon → healthy → never watered →
+// no schedule. Within a group, soonest due date first, then name.
+const STATUS_RANK = { overdue: 0, due: 1, soon: 2, ok: 3 }
+function urgencyRank(p) {
+  const s = careStatus(p.lastWatered, p.waterIntervalDays)
+  if (s) return STATUS_RANK[s]
+  return p.waterIntervalDays ? 4 : 5
+}
+function byUrgency(a, b) {
+  const rank = urgencyRank(a) - urgencyRank(b)
+  if (rank) return rank
+  const dueA = nextDue(a.lastWatered, a.waterIntervalDays) || ''
+  const dueB = nextDue(b.lastWatered, b.waterIntervalDays) || ''
+  return dueA.localeCompare(dueB) || (a.name || '').localeCompare(b.name || '')
+}
 
 export default function PlantList() {
   const [plants, setPlants] = useState(null)
   const [q, setQ] = useState('')
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const load = useCallback(() => {
     db.listPlants().then(setPlants).catch((e) => setError(e.message || 'Failed to load'))
   }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
 
   const filtered = useMemo(() => {
     if (!plants) return []
     const term = q.trim().toLowerCase()
-    if (!term) return plants
-    return plants.filter(
-      (p) => p.name?.toLowerCase().includes(term) || p.type?.toLowerCase().includes(term) || p.location?.toLowerCase().includes(term),
-    )
+    const matches = term
+      ? plants.filter(
+          (p) => p.name?.toLowerCase().includes(term) || p.type?.toLowerCase().includes(term) || p.location?.toLowerCase().includes(term),
+        )
+      : plants
+    return [...matches].sort(byUrgency)
   }, [plants, q])
 
   if (error) return <div className="py-16 text-center text-soil-50/55">⚠️ {error}</div>
@@ -49,7 +72,7 @@ export default function PlantList() {
         <p className="py-8 text-center text-soil-50/50">No matches for “{q}”.</p>
       ) : (
         <div className="space-y-2">
-          {filtered.map((p) => <PlantCard key={p.id} plant={p} />)}
+          {filtered.map((p) => <PlantCard key={p.id} plant={p} onChanged={load} />)}
         </div>
       )}
     </div>

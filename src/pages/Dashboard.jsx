@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { db, MODE } from '../lib/db.js'
 import { needsWater, wateringSoon, careStatus, photoReminderDue } from '../lib/care.js'
@@ -10,10 +10,14 @@ export default function Dashboard() {
   const [error, setError] = useState('')
   const [collectionName, setCollectionName] = useState(DEFAULT_COLLECTION_NAME)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     db.listPlants().then(setPlants).catch((e) => setError(e.message || 'Failed to load'))
-    db.getSettings().then((s) => s.collectionName && setCollectionName(s.collectionName)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    load()
+    db.getSettings().then((s) => s.collectionName && setCollectionName(s.collectionName)).catch(() => {})
+  }, [load])
 
   const stats = useMemo(() => {
     if (!plants) return null
@@ -65,7 +69,7 @@ export default function Dashboard() {
               <div className="card p-5 text-center text-soil-50/60">🎉 All caught up — nothing needs water today.</div>
             ) : (
               <div className="space-y-2">
-                {stats.water.map((p) => <PlantCard key={p.id} plant={p} />)}
+                {stats.water.map((p) => <PlantCard key={p.id} plant={p} onChanged={load} />)}
               </div>
             )}
           </section>
@@ -73,7 +77,7 @@ export default function Dashboard() {
           {stats.repotSoon.length > 0 && (
             <section className="space-y-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-soil-50/45">Repotting due</h2>
-              <div className="space-y-2">{stats.repotSoon.map((p) => <PlantCard key={p.id} plant={p} />)}</div>
+              <div className="space-y-2">{stats.repotSoon.map((p) => <PlantCard key={p.id} plant={p} onChanged={load} />)}</div>
             </section>
           )}
 
@@ -81,7 +85,7 @@ export default function Dashboard() {
             <section className="space-y-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-soil-50/45">📸 Photo check-in</h2>
               <p className="text-xs text-soil-50/45">No new photo in 6 months — snap an updated one.</p>
-              <div className="space-y-2">{stats.photoDue.map((p) => <PlantCard key={p.id} plant={p} />)}</div>
+              <div className="space-y-2">{stats.photoDue.map((p) => <PlantCard key={p.id} plant={p} onChanged={load} />)}</div>
             </section>
           )}
 
@@ -90,7 +94,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-soil-50/45">Recently added</h2>
               <Link to="/plants" className="text-sm text-canopy-400">See all</Link>
             </div>
-            <div className="space-y-2">{stats.recent.map((p) => <PlantCard key={p.id} plant={p} />)}</div>
+            <div className="space-y-2">{stats.recent.map((p) => <PlantCard key={p.id} plant={p} onChanged={load} />)}</div>
           </section>
         </>
       )}
