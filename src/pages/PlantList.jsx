@@ -15,15 +15,6 @@ function urgencyRank(p, care) {
   if (s) return STATUS_RANK[s]
   return p[care.intervalKey] ? 4 : 5
 }
-function byUrgency(care) {
-  return (a, b) => {
-    const rank = urgencyRank(a, care) - urgencyRank(b, care)
-    if (rank) return rank
-    const dueA = nextDue(a[care.lastKey], a[care.intervalKey]) || ''
-    const dueB = nextDue(b[care.lastKey], b[care.intervalKey]) || ''
-    return dueA.localeCompare(dueB) || (a.name || '').localeCompare(b.name || '')
-  }
-}
 
 export default function PlantList() {
   const [plants, setPlants] = useState(null)
@@ -48,7 +39,17 @@ export default function PlantList() {
           (p) => p.name?.toLowerCase().includes(term) || p.type?.toLowerCase().includes(term) || p.location?.toLowerCase().includes(term),
         )
       : plants
-    return [...matches].sort(byUrgency(care))
+    // Precompute each plant's sort key once (not inside the comparator) so
+    // re-sorting on a lens switch stays cheap even with a long list.
+    return matches
+      .map((p) => ({
+        p,
+        rank: urgencyRank(p, care),
+        due: nextDue(p[care.lastKey], p[care.intervalKey]) || '',
+        name: (p.name || '').toLowerCase(),
+      }))
+      .sort((a, b) => a.rank - b.rank || a.due.localeCompare(b.due) || a.name.localeCompare(b.name))
+      .map((x) => x.p)
   }, [plants, q, care])
 
   if (error) return <div className="py-16 text-center text-soil-50/55">⚠️ {error}</div>
@@ -69,26 +70,36 @@ export default function PlantList() {
             autoCapitalize="none"
           />
           {/* Care lens: pick which task each card reflects (status + one-tap
-              action) and sorts by. Defaults to watering. */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {CARE_TYPES.map((c) => {
-              const active = lens === c.key
-              return (
-                <button
-                  key={c.key}
-                  onClick={() => setLens(c.key)}
-                  aria-pressed={active}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                    active
-                      ? 'bg-canopy-500/20 text-canopy-300 ring-1 ring-canopy-500/40'
-                      : 'bg-white/5 text-soil-50/60 active:bg-white/10'
-                  }`}
-                >
-                  <span>{c.icon}</span>
-                  {c.short}
-                </button>
-              )
-            })}
+              action) and sorts by. Defaults to watering; Clear returns there. */}
+          <div className="flex items-center gap-2">
+            <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
+              {CARE_TYPES.map((c) => {
+                const active = lens === c.key
+                return (
+                  <button
+                    key={c.key}
+                    onClick={() => setLens(c.key)}
+                    aria-pressed={active}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                      active ? 'bg-canopy-600 text-white' : 'bg-white/5 text-soil-50/60 active:bg-white/10'
+                    }`}
+                  >
+                    <span>{c.icon}</span>
+                    {c.short}
+                  </button>
+                )
+              })}
+            </div>
+            {lens !== 'watered' && (
+              <button
+                type="button"
+                onClick={() => setLens('watered')}
+                aria-label="Clear filter, back to watering"
+                className="shrink-0 self-stretch border-l border-white/10 pl-3 text-xs font-medium text-soil-50/55 transition active:text-soil-50/90"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </>
       )}

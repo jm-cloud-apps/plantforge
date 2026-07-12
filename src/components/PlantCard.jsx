@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import CareBadge from './CareBadge.jsx'
 import PlantTypeIcon from './PlantTypeIcon.jsx'
@@ -6,30 +6,25 @@ import { db } from '../lib/db.js'
 import { careSummary } from '../lib/care.js'
 import { careType as resolveCareType } from '../data/careTypes.js'
 
-// One row in a plant list. Alongside the status badge it shows a compact,
-// glanceable timing line — always "<verb> Nd ago" plus how urgent it is now
-// (e.g. "3d overdue" / "next in 4d") — so you never have to open the plant to
-// know when it was last cared for. `careType` picks which task the row reflects
+// One row in a plant list. Alongside the status badge it shows just the one fact
+// worth a glance — "<verb> Nd ago" — so you never have to open the plant to know
+// when it was last cared for. `careType` picks which task the row reflects
 // (watering by default); a one-tap button logs "<verb> today" for plants that
-// need it (pass `onChanged` to refresh the surrounding list).
-export default function PlantCard({ plant, onChanged, careType = 'watered' }) {
+// need it (pass `onChanged` to refresh the surrounding list). Memoized so a
+// search keystroke only re-renders the cards whose plant actually changed.
+function PlantCard({ plant, onChanged, careType = 'watered' }) {
   const [busy, setBusy] = useState(false)
   const care = resolveCareType(careType)
   const last = plant[care.lastKey]
   const interval = plant[care.intervalKey]
-  const { status, lastAgo, dueIn } = careSummary(last, interval)
+  const { status, lastAgo } = careSummary(last, interval)
   const needsNow = status === 'overdue' || status === 'due'
   const neverDone = Boolean(interval) && !last
   const verb = care.verb.toLowerCase()
 
-  // "<verb> today" / "<verb> 8d ago" — the fact the user always wants first.
-  const lastLabel = lastAgo == null ? null : lastAgo === 0 ? `${verb} today` : `${verb} ${lastAgo}d ago`
-  // Urgency magnitude, skipped when the badge already says it (due today).
-  let dueLabel = null
-  if (dueIn != null && dueIn !== 0) {
-    dueLabel = dueIn < 0 ? `${-dueIn}d overdue` : `${status === 'ok' ? 'next' : 'due'} in ${dueIn}d`
-  }
-  const timing = [lastLabel, dueLabel].filter(Boolean).join(' · ')
+  // Just "<verb> today" / "<verb> 8d ago" — the badge already conveys urgency,
+  // so we deliberately omit the "3d overdue / due in 2d" magnitude here.
+  const timing = lastAgo == null ? '' : lastAgo === 0 ? `${verb} today` : `${verb} ${lastAgo}d ago`
 
   async function logNow(e) {
     e.preventDefault() // the whole card is a <Link>; don't navigate
@@ -50,10 +45,7 @@ export default function PlantCard({ plant, onChanged, careType = 'watered' }) {
       <Thumb plant={plant} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-semibold text-white">{plant.name}</div>
-        <div className="truncate text-sm text-soil-50/55">
-          {plant.type || 'Unknown type'}
-          {plant.location && <span className="text-soil-50/40"> · {plant.location}</span>}
-        </div>
+        <div className="truncate text-sm text-soil-50/55">{plant.type || 'Unknown type'}</div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
           {status && <CareBadge status={status} label={status === 'due' ? care.dueLabel : undefined} />}
           {timing ? (
@@ -82,6 +74,10 @@ export default function PlantCard({ plant, onChanged, careType = 'watered' }) {
     </Link>
   )
 }
+
+// Memoized: `plant` refs are stable across list re-renders, and `onChanged` is a
+// stable useCallback, so filtering/typing skips re-rendering untouched rows.
+export default memo(PlantCard)
 
 export function Thumb({ plant, size = 'h-16 w-16' }) {
   return plant.photoUrl ? (
