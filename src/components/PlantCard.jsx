@@ -3,18 +3,27 @@ import { Link } from 'react-router-dom'
 import CareBadge from './CareBadge.jsx'
 import PlantTypeIcon from './PlantTypeIcon.jsx'
 import { db } from '../lib/db.js'
-import { careStatus, relativeDays, nextDue } from '../lib/care.js'
+import { waterSummary } from '../lib/care.js'
 
-// One row in a plant list. Alongside the status badge it shows the most useful
-// date without opening the plant: last watered when water is due/overdue, next
-// watering otherwise. A one-tap 💧 button logs "watered today" for plants that
-// need it (pass `onChanged` to refresh the surrounding list).
+// One row in a plant list. Alongside the status badge it shows a compact,
+// glanceable timing line — always "watered Nd ago" plus how urgent it is now
+// (e.g. "3d overdue" / "next in 4d") — so you never have to open the plant to
+// know when it was last watered. A one-tap 💧 button logs "watered today" for
+// plants that need it (pass `onChanged` to refresh the surrounding list).
 export default function PlantCard({ plant, onChanged }) {
   const [busy, setBusy] = useState(false)
-  const waterStatus = careStatus(plant.lastWatered, plant.waterIntervalDays)
-  const due = nextDue(plant.lastWatered, plant.waterIntervalDays)
+  const { status: waterStatus, lastAgo, dueIn } = waterSummary(plant)
   const needsWaterNow = waterStatus === 'overdue' || waterStatus === 'due'
   const neverWatered = Boolean(plant.waterIntervalDays) && !plant.lastWatered
+
+  // "watered today" / "watered 8d ago" — the fact the user always wants first.
+  const lastLabel = lastAgo == null ? null : lastAgo === 0 ? 'watered today' : `watered ${lastAgo}d ago`
+  // Urgency magnitude, skipped when the badge already says it (due today).
+  let dueLabel = null
+  if (dueIn != null && dueIn !== 0) {
+    dueLabel = dueIn < 0 ? `${-dueIn}d overdue` : `${waterStatus === 'ok' ? 'next' : 'due'} in ${dueIn}d`
+  }
+  const timing = [lastLabel, dueLabel].filter(Boolean).join(' · ')
 
   async function waterNow(e) {
     e.preventDefault() // the whole card is a <Link>; don't navigate
@@ -35,18 +44,18 @@ export default function PlantCard({ plant, onChanged }) {
       <Thumb plant={plant} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-semibold text-white">{plant.name}</div>
-        <div className="truncate text-sm text-soil-50/55">{plant.type || 'Unknown type'}</div>
+        <div className="truncate text-sm text-soil-50/55">
+          {plant.type || 'Unknown type'}
+          {plant.location && <span className="text-soil-50/40"> · {plant.location}</span>}
+        </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-          {waterStatus ? (
-            <CareBadge status={waterStatus} />
+          {waterStatus && <CareBadge status={waterStatus} />}
+          {timing ? (
+            <span className="text-xs text-soil-50/55">{timing}</span>
           ) : (
-            <span className="text-xs text-soil-50/40">{neverWatered ? 'Not watered yet' : 'No watering schedule'}</span>
-          )}
-          {needsWaterNow && (
-            <span className="whitespace-nowrap text-xs text-soil-50/45">watered {relativeDays(plant.lastWatered)}</span>
-          )}
-          {due && !needsWaterNow && (
-            <span className="whitespace-nowrap text-xs text-soil-50/45">water {relativeDays(due)}</span>
+            !waterStatus && (
+              <span className="text-xs text-soil-50/40">{neverWatered ? 'Not watered yet' : 'No watering schedule'}</span>
+            )
           )}
         </div>
       </div>
