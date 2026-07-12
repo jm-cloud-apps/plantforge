@@ -6,7 +6,7 @@ import { today } from './care.js'
 // send it from the client.
 
 const COLS =
-  'id,name,type,photo_path,location,light,pot_size,acquired_on,last_watered,water_interval_days,last_repotted,repot_interval_days,last_fertilized,fertilize_interval_days,notes,last_photo_on,created_at,updated_at'
+  'id,name,type,photo_path,location,light,pot_size,acquired_on,last_watered,water_interval_days,last_kelped,kelp_interval_days,last_repotted,repot_interval_days,last_fertilized,fertilize_interval_days,notes,last_photo_on,created_at,updated_at'
 
 // camelCase (UI) → snake_case (DB), coercing '' to null and numbers to ints.
 function toRow(d) {
@@ -19,6 +19,8 @@ function toRow(d) {
     acquired_on: nz(d.acquiredOn),
     last_watered: nz(d.lastWatered),
     water_interval_days: ni(d.waterIntervalDays),
+    last_kelped: nz(d.lastKelped),
+    kelp_interval_days: ni(d.kelpIntervalDays),
     last_repotted: nz(d.lastRepotted),
     repot_interval_days: ni(d.repotIntervalDays),
     last_fertilized: nz(d.lastFertilized),
@@ -30,6 +32,7 @@ function toRow(d) {
   const provided = {
     name: 'name', type: 'type', location: 'location', light: 'light', potSize: 'pot_size',
     acquiredOn: 'acquired_on', lastWatered: 'last_watered', waterIntervalDays: 'water_interval_days',
+    lastKelped: 'last_kelped', kelpIntervalDays: 'kelp_interval_days',
     lastRepotted: 'last_repotted', repotIntervalDays: 'repot_interval_days',
     lastFertilized: 'last_fertilized', fertilizeIntervalDays: 'fertilize_interval_days', notes: 'notes',
   }
@@ -98,6 +101,8 @@ function rowToPlant(row, photoUrl = null) {
     acquiredOn: row.acquired_on,
     lastWatered: row.last_watered,
     waterIntervalDays: row.water_interval_days,
+    lastKelped: row.last_kelped,
+    kelpIntervalDays: row.kelp_interval_days,
     lastRepotted: row.last_repotted,
     repotIntervalDays: row.repot_interval_days,
     lastFertilized: row.last_fertilized,
@@ -278,7 +283,7 @@ export const supabaseBackend = {
 
   async logCare(plantId, type, { date, note } = {}) {
     const eventDate = date || today() // local calendar date (device timezone)
-    const field = { watered: 'last_watered', repotted: 'last_repotted', fertilized: 'last_fertilized' }[type]
+    const field = { watered: 'last_watered', kelped: 'last_kelped', repotted: 'last_repotted', fertilized: 'last_fertilized' }[type]
     if (field) {
       await supabase.from('plants').update({ [field]: eventDate, updated_at: new Date().toISOString() }).eq('id', plantId)
       invalidateList() // watering/repot status shown in the list changed
@@ -325,7 +330,7 @@ export const supabaseBackend = {
     const { error } = await supabase.from('care_events').delete().eq('id', event.id)
     if (error) throw error
     invalidateList() // may change the plant's last_* status shown in the list
-    const field = { watered: 'last_watered', repotted: 'last_repotted', fertilized: 'last_fertilized' }[event.type]
+    const field = { watered: 'last_watered', kelped: 'last_kelped', repotted: 'last_repotted', fertilized: 'last_fertilized' }[event.type]
     if (field) {
       const { data } = await supabase
         .from('care_events')

@@ -3,34 +3,40 @@ import { Link } from 'react-router-dom'
 import CareBadge from './CareBadge.jsx'
 import PlantTypeIcon from './PlantTypeIcon.jsx'
 import { db } from '../lib/db.js'
-import { waterSummary } from '../lib/care.js'
+import { careSummary } from '../lib/care.js'
+import { careType as resolveCareType } from '../data/careTypes.js'
 
 // One row in a plant list. Alongside the status badge it shows a compact,
-// glanceable timing line — always "watered Nd ago" plus how urgent it is now
+// glanceable timing line — always "<verb> Nd ago" plus how urgent it is now
 // (e.g. "3d overdue" / "next in 4d") — so you never have to open the plant to
-// know when it was last watered. A one-tap 💧 button logs "watered today" for
-// plants that need it (pass `onChanged` to refresh the surrounding list).
-export default function PlantCard({ plant, onChanged }) {
+// know when it was last cared for. `careType` picks which task the row reflects
+// (watering by default); a one-tap button logs "<verb> today" for plants that
+// need it (pass `onChanged` to refresh the surrounding list).
+export default function PlantCard({ plant, onChanged, careType = 'watered' }) {
   const [busy, setBusy] = useState(false)
-  const { status: waterStatus, lastAgo, dueIn } = waterSummary(plant)
-  const needsWaterNow = waterStatus === 'overdue' || waterStatus === 'due'
-  const neverWatered = Boolean(plant.waterIntervalDays) && !plant.lastWatered
+  const care = resolveCareType(careType)
+  const last = plant[care.lastKey]
+  const interval = plant[care.intervalKey]
+  const { status, lastAgo, dueIn } = careSummary(last, interval)
+  const needsNow = status === 'overdue' || status === 'due'
+  const neverDone = Boolean(interval) && !last
+  const verb = care.verb.toLowerCase()
 
-  // "watered today" / "watered 8d ago" — the fact the user always wants first.
-  const lastLabel = lastAgo == null ? null : lastAgo === 0 ? 'watered today' : `watered ${lastAgo}d ago`
+  // "<verb> today" / "<verb> 8d ago" — the fact the user always wants first.
+  const lastLabel = lastAgo == null ? null : lastAgo === 0 ? `${verb} today` : `${verb} ${lastAgo}d ago`
   // Urgency magnitude, skipped when the badge already says it (due today).
   let dueLabel = null
   if (dueIn != null && dueIn !== 0) {
-    dueLabel = dueIn < 0 ? `${-dueIn}d overdue` : `${waterStatus === 'ok' ? 'next' : 'due'} in ${dueIn}d`
+    dueLabel = dueIn < 0 ? `${-dueIn}d overdue` : `${status === 'ok' ? 'next' : 'due'} in ${dueIn}d`
   }
   const timing = [lastLabel, dueLabel].filter(Boolean).join(' · ')
 
-  async function waterNow(e) {
+  async function logNow(e) {
     e.preventDefault() // the whole card is a <Link>; don't navigate
     if (busy) return
     setBusy(true)
     try {
-      await db.logCare(plant.id, 'watered')
+      await db.logCare(plant.id, care.key)
       onChanged?.()
     } catch (err) {
       alert(err.message || 'Could not save — please try again')
@@ -49,24 +55,26 @@ export default function PlantCard({ plant, onChanged }) {
           {plant.location && <span className="text-soil-50/40"> · {plant.location}</span>}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-          {waterStatus && <CareBadge status={waterStatus} />}
+          {status && <CareBadge status={status} label={status === 'due' ? care.dueLabel : undefined} />}
           {timing ? (
             <span className="text-xs text-soil-50/55">{timing}</span>
           ) : (
-            !waterStatus && (
-              <span className="text-xs text-soil-50/40">{neverWatered ? 'Not watered yet' : 'No watering schedule'}</span>
+            !status && (
+              <span className="text-xs text-soil-50/40">
+                {neverDone ? `Not ${verb} yet` : `No ${care.label.toLowerCase()} schedule`}
+              </span>
             )
           )}
         </div>
       </div>
-      {needsWaterNow || neverWatered ? (
+      {needsNow || neverDone ? (
         <button
-          onClick={waterNow}
+          onClick={logNow}
           disabled={busy}
-          aria-label={`Mark ${plant.name} watered today`}
+          aria-label={`Mark ${plant.name} ${verb} today`}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-500/15 text-lg transition active:scale-90 disabled:opacity-50"
         >
-          {busy ? '…' : '💧'}
+          {busy ? '…' : care.icon}
         </button>
       ) : (
         <span className="text-soil-50/30">›</span>

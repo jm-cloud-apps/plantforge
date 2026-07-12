@@ -84,7 +84,7 @@ export const localBackend = {
   async logCare(plantId, type, { date, note } = {}) {
     const eventDate = date || today() // local calendar date (device timezone)
     // 1) stamp the matching last_* field on the plant
-    const field = { watered: 'lastWatered', repotted: 'lastRepotted', fertilized: 'lastFertilized' }[type]
+    const field = { watered: 'lastWatered', kelped: 'lastKelped', repotted: 'lastRepotted', fertilized: 'lastFertilized' }[type]
     if (field) await this.updatePlant(plantId, { [field]: eventDate })
     // 2) append a history event
     const events = read(EVENTS_KEY)
@@ -143,7 +143,7 @@ export const localBackend = {
     if (!event?.id) return
     const remaining = read(EVENTS_KEY).filter((e) => e.id !== event.id)
     write(EVENTS_KEY, remaining)
-    const field = { watered: 'lastWatered', repotted: 'lastRepotted', fertilized: 'lastFertilized' }[event.type]
+    const field = { watered: 'lastWatered', kelped: 'lastKelped', repotted: 'lastRepotted', fertilized: 'lastFertilized' }[event.type]
     if (field) {
       const latest =
         remaining
