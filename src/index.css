@@ -51,6 +51,15 @@ button {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Hide the scrollbar on horizontally-scrolling rows (e.g. the care-lens chips)
+   so the 8px track never clips or crowds them. iOS already uses overlay bars. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Safe-area helpers */
 .pt-safe {
   padding-top: calc(0.5rem + var(--sat));
