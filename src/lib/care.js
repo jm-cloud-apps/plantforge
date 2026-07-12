@@ -107,16 +107,17 @@ export function photoReminderDue(lastPhotoOn) {
   return startOfDay(today()) >= due
 }
 
-// Glanceable watering summary for a list row. Bundles the two facts worth
-// showing without opening the plant: when it was last watered, and how urgent it
-// is now. `dueIn` is signed days until the next watering (negative = overdue).
+// Glanceable summary of one care task (watering, kelp, repotting…) for a list
+// row or detail tile. Bundles the two facts worth showing without opening the
+// plant: when it was last done, and how urgent it is now. `dueIn` is signed days
+// until the next due date (negative = overdue).
 //   status  -> 'overdue' | 'due' | 'soon' | 'ok' | null (no schedule)
-//   lastAgo -> whole days since last watered, or null if never watered
-//   dueIn   -> days until next due, or null if no schedule / never watered
-export function waterSummary(plant) {
-  const status = careStatus(plant.lastWatered, plant.waterIntervalDays)
-  const lastAgo = daysAgo(plant.lastWatered)
-  const due = nextDue(plant.lastWatered, plant.waterIntervalDays)
+//   lastAgo -> whole days since last done, or null if never done
+//   dueIn   -> days until next due, or null if no schedule / never done
+export function careSummary(lastDate, intervalDays) {
+  const status = careStatus(lastDate, intervalDays)
+  const lastAgo = daysAgo(lastDate)
+  const due = nextDue(lastDate, intervalDays)
   const dueIn = due ? daysBetween(today(), due) : null
   return { status, lastAgo, dueIn }
 }

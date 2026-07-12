@@ -13,6 +13,7 @@ create table if not exists plants (
   pot_size text,
   acquired_on date,
   last_watered date,    water_interval_days int,
+  last_kelped date,     kelp_interval_days int,       -- seaweed/kelp feeding
   last_repotted date,   repot_interval_days int,
   last_fertilized date, fertilize_interval_days int,
   notes text,
@@ -20,6 +21,11 @@ create table if not exists plants (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Migration (safe to re-run): backfill the Kelp care columns on existing installs
+-- that predate them. New projects already get them from the create table above.
+alter table plants add column if not exists last_kelped date;
+alter table plants add column if not exists kelp_interval_days int;
 
 -- Photo history: many photos per plant, each timestamped. The plant's
 -- photo_path mirrors the most recent one (the cover shown on cards).
@@ -37,7 +43,7 @@ create table if not exists care_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   plant_id uuid not null references plants(id) on delete cascade,
-  type text not null,                  -- 'watered'|'repotted'|'fertilized'|'note'|'acquired'
+  type text not null,                  -- 'watered'|'kelped'|'repotted'|'fertilized'|'note'|'acquired'
   event_date date not null default current_date,
   note text,
   created_at timestamptz not null default now()

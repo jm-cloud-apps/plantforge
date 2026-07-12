@@ -9,8 +9,8 @@ import PhotoInput from '../components/PhotoInput.jsx'
 
 const BLANK = {
   name: '', type: '', location: '', light: '', potSize: '', acquiredOn: '',
-  lastWatered: '', waterIntervalDays: '', lastRepotted: '', repotIntervalDays: '',
-  lastFertilized: '', fertilizeIntervalDays: '', notes: '',
+  lastWatered: '', waterIntervalDays: '', lastKelped: '', kelpIntervalDays: '',
+  lastRepotted: '', repotIntervalDays: '', lastFertilized: '', fertilizeIntervalDays: '', notes: '',
 }
 
 export default function PlantForm() {
@@ -31,7 +31,8 @@ export default function PlantForm() {
       setForm({
         name: p.name || '', type: p.type || '', location: p.location || '', light: p.light || '',
         potSize: p.potSize || '', acquiredOn: p.acquiredOn || '', lastWatered: p.lastWatered || '',
-        waterIntervalDays: p.waterIntervalDays ?? '', lastRepotted: p.lastRepotted || '',
+        waterIntervalDays: p.waterIntervalDays ?? '', lastKelped: p.lastKelped || '',
+        kelpIntervalDays: p.kelpIntervalDays ?? '', lastRepotted: p.lastRepotted || '',
         repotIntervalDays: p.repotIntervalDays ?? '', lastFertilized: p.lastFertilized || '',
         fertilizeIntervalDays: p.fertilizeIntervalDays ?? '', notes: p.notes || '',
       })
@@ -121,6 +122,7 @@ export default function PlantForm() {
       </div>
 
       <CareFields title="💧 Watering" lastKey="lastWatered" intKey="waterIntervalDays" form={form} set={set} />
+      <CareFields title="🌊 Kelp" lastKey="lastKelped" intKey="kelpIntervalDays" form={form} set={set} />
       <CareFields title="🪴 Repotting" lastKey="lastRepotted" intKey="repotIntervalDays" form={form} set={set} />
       <CareFields title="🌿 Fertilizing" lastKey="lastFertilized" intKey="fertilizeIntervalDays" form={form} set={set} />
 

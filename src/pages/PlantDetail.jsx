@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { db } from '../lib/db.js'
-import { careStatus, relativeDays, nextDue, formatDate, daysAgo, monthsAgoLabel, photoReminderDue } from '../lib/care.js'
+import { relativeDays, formatDate, monthsAgoLabel, photoReminderDue, careSummary } from '../lib/care.js'
 import { LIGHT_LABEL } from '../data/plantTypes.js'
+import { CARE_TYPES } from '../data/careTypes.js'
 import CareBadge from '../components/CareBadge.jsx'
 import { Thumb } from '../components/PlantCard.jsx'
 
 const EVENT_META = {
   watered: { icon: '💧', label: 'Watered' },
+  kelped: { icon: '🌊', label: 'Kelped' },
   repotted: { icon: '🪴', label: 'Repotted' },
   fertilized: { icon: '🌿', label: 'Fertilized' },
   acquired: { icon: '🛒', label: 'Acquired' },
@@ -122,23 +124,19 @@ export default function PlantDetail() {
         </div>
       </div>
 
-      {/* Care tasks with quick actions */}
-      <section className="space-y-3">
-        <CareRow
-          icon="💧" title="Watering"
-          last={plant.lastWatered} interval={plant.waterIntervalDays}
-          actionLabel="Watered today" busy={busy === 'watered'} onAction={() => quickLog('watered')}
-        />
-        <CareRow
-          icon="🪴" title="Repotting"
-          last={plant.lastRepotted} interval={plant.repotIntervalDays}
-          actionLabel="Repotted today" busy={busy === 'repotted'} onAction={() => quickLog('repotted')}
-        />
-        <CareRow
-          icon="🌿" title="Fertilizing"
-          last={plant.lastFertilized} interval={plant.fertilizeIntervalDays}
-          actionLabel="Fertilized today" busy={busy === 'fertilized'} onAction={() => quickLog('fertilized')}
-        />
+      {/* Care tasks — 2×2 grid of quick-status tiles with one-tap logging.
+          Exact dates live in Care history further down. */}
+      <section className="grid grid-cols-2 gap-3">
+        {CARE_TYPES.map((c) => (
+          <CareTile
+            key={c.key}
+            care={c}
+            last={plant[c.lastKey]}
+            interval={plant[c.intervalKey]}
+            busy={busy === c.key}
+            onAction={() => quickLog(c.key)}
+          />
+        ))}
       </section>
 
       {/* Facts */}
@@ -248,30 +246,35 @@ export default function PlantDetail() {
   )
 }
 
-function CareRow({ icon, title, last, interval, actionLabel, onAction, busy }) {
-  const status = careStatus(last, interval)
-  const due = nextDue(last, interval)
-  const ago = daysAgo(last)
+// Compact care tile for the 2×2 grid: status badge, a glanceable "<verb> Nd ago"
+// line (+ urgency), and a one-tap "<verb> today" button. Exact dates are kept in
+// the Care history list below, so the tile stays scannable at half width.
+function CareTile({ care, last, interval, onAction, busy }) {
+  const { status, lastAgo, dueIn } = careSummary(last, interval)
+  const neverDone = Boolean(interval) && !last
+  const verb = care.verb.toLowerCase()
+  const lastLabel = lastAgo == null ? null : lastAgo === 0 ? `${verb} today` : `${verb} ${lastAgo}d ago`
+  let dueLabel = null
+  if (dueIn != null && dueIn !== 0) {
+    dueLabel = dueIn < 0 ? `${-dueIn}d overdue` : `${status === 'ok' ? 'next' : 'due'} in ${dueIn}d`
+  }
+  const timing = [lastLabel, dueLabel].filter(Boolean).join(' · ')
   return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{icon}</span>
-          <span className="font-semibold text-white">{title}</span>
-        </div>
-        {status && <CareBadge status={status} />}
+    <div className="card flex flex-col p-3">
+      <div className="flex items-center gap-1.5">
+        <span className="text-lg">{care.icon}</span>
+        <span className="truncate text-sm font-semibold text-white">{care.label}</span>
       </div>
-      <div className="mt-1 text-sm text-soil-50/60">
-        {last ? (
-          <>Last: {formatDate(last)} ({ago === 0 ? 'today' : `${ago} day${ago === 1 ? '' : 's'} ago`})</>
+      <div className="mt-2 flex min-h-[24px] items-center">
+        {status ? (
+          <CareBadge status={status} label={status === 'due' ? care.dueLabel : undefined} />
         ) : (
-          <>Not recorded yet</>
+          <span className="text-xs text-soil-50/40">{neverDone ? `Not ${verb} yet` : 'No schedule'}</span>
         )}
-        {due && <> · next {relativeDays(due)}</>}
-        {!interval && last && <> · no interval set</>}
       </div>
-      <button onClick={onAction} disabled={busy} className="btn-primary mt-3 w-full">
-        {busy ? 'Saving…' : actionLabel}
+      <div className="mt-1 min-h-[16px] text-xs text-soil-50/55">{timing}</div>
+      <button onClick={onAction} disabled={busy} className="btn-primary mt-auto w-full px-2 py-2 text-sm">
+        {busy ? 'Saving…' : `${care.verb} today`}
       </button>
     </div>
   )
