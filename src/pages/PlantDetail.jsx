@@ -247,33 +247,32 @@ export default function PlantDetail() {
 }
 
 // Compact care tile for the 2×2 grid: status badge, a glanceable "<verb> Nd ago"
-// line (+ urgency), and a one-tap "<verb> today" button. Exact dates are kept in
-// the Care history list below, so the tile stays scannable at half width.
+// line, and a one-tap "<verb> today" button. Every tile uses the same fixed-
+// height rows and gaps so all four line up cleanly; exact dates live in the Care
+// history list below. Single-line detail (no "· 9d overdue" magnitude) keeps the
+// rhythm uniform and matches the list cards.
 function CareTile({ care, last, interval, onAction, busy }) {
-  const { status, lastAgo, dueIn } = careSummary(last, interval)
+  const { status, lastAgo } = careSummary(last, interval)
   const neverDone = Boolean(interval) && !last
   const verb = care.verb.toLowerCase()
-  const lastLabel = lastAgo == null ? null : lastAgo === 0 ? `${verb} today` : `${verb} ${lastAgo}d ago`
-  let dueLabel = null
-  if (dueIn != null && dueIn !== 0) {
-    dueLabel = dueIn < 0 ? `${-dueIn}d overdue` : `${status === 'ok' ? 'next' : 'due'} in ${dueIn}d`
-  }
-  const timing = [lastLabel, dueLabel].filter(Boolean).join(' · ')
+  const doneLabel = lastAgo == null ? '' : lastAgo === 0 ? `${verb} today` : `${verb} ${lastAgo}d ago`
   return (
-    <div className="card flex flex-col p-3">
-      <div className="flex items-center gap-1.5">
-        <span className="text-lg">{care.icon}</span>
-        <span className="truncate text-sm font-semibold text-white">{care.label}</span>
+    <div className="card flex flex-col gap-3 p-3">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-lg leading-none">{care.icon}</span>
+          <span className="truncate text-sm font-semibold text-white">{care.label}</span>
+        </div>
+        <div className="flex h-6 items-center">
+          {status ? (
+            <CareBadge status={status} label={status === 'due' ? care.dueLabel : undefined} />
+          ) : (
+            <span className="text-xs font-medium text-soil-50/40">{neverDone ? `Not ${verb} yet` : 'No schedule'}</span>
+          )}
+        </div>
+        <div className="h-4 truncate text-xs text-soil-50/55">{doneLabel}</div>
       </div>
-      <div className="mt-2 flex min-h-[24px] items-center">
-        {status ? (
-          <CareBadge status={status} label={status === 'due' ? care.dueLabel : undefined} />
-        ) : (
-          <span className="text-xs text-soil-50/40">{neverDone ? `Not ${verb} yet` : 'No schedule'}</span>
-        )}
-      </div>
-      <div className="mt-1 min-h-[16px] text-xs text-soil-50/55">{timing}</div>
-      <button onClick={onAction} disabled={busy} className="btn-primary mt-auto w-full px-2 py-2 text-sm">
+      <button onClick={onAction} disabled={busy} className="btn-primary w-full whitespace-nowrap px-2 text-sm">
         {busy ? 'Saving…' : `${care.verb} today`}
       </button>
     </div>
